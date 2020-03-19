@@ -20,44 +20,29 @@
 </template>
 
 <script>
-import cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
-
 export default {
-  asyncData() {
-    if (process.server) {
-      const covidCases = [];
-      const covidCasesHeaders = [];
-      return puppeteer
-        .launch()
-        .then(browser => browser.newPage())
-        .then((page) => {
-          return page.goto('https://infogram.com/covid-2019-ins-colombia-1hnq41zg9ord63z').then(() => {
-            return page.content();
-          });
-        })
-        .then((html) => {
-          const $ = cheerio.load(html);
-          $('.igc-table-container').last().find('thead .igc-table-header span').each((i, title) => {
-            const titleText = $(title).text();
-            const value = titleText.split(' ').join('').toLowerCase();
-            covidCasesHeaders.push({ text: $(title).text(), value });
-          });
-          $('.igc-table-container').last().find('tbody tr').each((i, row) => {
-            const data = {};
-            $(row).find('span').each((j, col) => {
-              if (covidCasesHeaders[j]) {
-                const dataText = $(col).text();
-                data[covidCasesHeaders[j].value] = dataText;
-              }
-            });
-            covidCases.push(data);
-          });
-          return { covidCases, covidCasesHeaders };
-        })
-        // eslint-disable-next-line
-        .catch(console.error);
+  async asyncData({ $axios }) {
+    const covidCases = [];
+    const covidCasesHeaders = [];
+    try {
+      const response = await $axios.$get('https://e.infogram.com/api/live/flex/a2e70c7d-0e70-46ca-a79a-f7e5a243828a/dfee1a5c-5cc8-4e90-8efb-d5bdf2803bf6');
+      const headers = response.data[0].shift();
+      headers.forEach((header) => {
+        const value = header.split(' ').join('').toLowerCase();
+        covidCasesHeaders.push({ text: header, value });
+      });
+      response.data[0].forEach((row, i) => {
+        const data = {};
+        row.forEach((col, j) => {
+          data[covidCasesHeaders[j].value] = col;
+        });
+        covidCases.push(data);
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Error', e);
     }
+    return { covidCases, covidCasesHeaders };
   },
   data() {
     return {
